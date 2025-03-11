@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
-class ControlPage extends StatelessWidget {
+class ControlPage extends StatefulWidget {
   final bool showAppBar;
   
   const ControlPage({
@@ -9,9 +11,18 @@ class ControlPage extends StatelessWidget {
   });
 
   @override
+  _ControlPageState createState() => _ControlPageState();
+}
+
+class _ControlPageState extends State<ControlPage> {
+  double _currentTemperature = 28.6; // Temperatura inicial
+  double _tempPromedio = 30.0; // Temperatura promedio
+  final TextEditingController _tempPromedioController = TextEditingController();
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: showAppBar ? AppBar(
+      appBar: widget.showAppBar ? AppBar(
         title: const Text('Control de Riego'),
       ) : null,
       body: ListView(
@@ -112,6 +123,18 @@ class ControlPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            TextField(
+              controller: _tempPromedioController,
+              decoration: const InputDecoration(
+                labelText: 'Temperatura Promedio',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (value) {
+                _tempPromedio = double.tryParse(value) ?? 30.0;
+              },
+            ),
+            const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
                 // TODO: Implementar riego
@@ -131,9 +154,48 @@ class ControlPage extends StatelessWidget {
                 // TODO: Implementar control de cobertura
               },
             ),
+            const SizedBox(height: 16),
+            const Text(
+              'Ajustar Temperatura',
+              style: TextStyle(fontSize: 18),
+            ),
+            Slider(
+              value: _currentTemperature,
+              min: 0,
+              max: 100,
+              divisions: 100,
+              label: _currentTemperature.round().toString(),
+              onChanged: (double value) {
+                setState(() {
+                  _currentTemperature = value;
+                });
+                _sendTemperatureData(value);
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  void _sendTemperatureData(double temperature) async {
+    final response = await http.post(
+      Uri.parse('https://api-kaax.onrender.com/kaax/temperatures/temperatura'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, double>{
+        'tempPromedio': _tempPromedio,
+        'tempActual': temperature,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      // La solicitud fue exitosa
+      print('Datos enviados: ${response.body}');
+    } else {
+      // Manejo de errores
+      print('Error al enviar datos: ${response.statusCode}');
+    }
   }
 } 
