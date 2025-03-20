@@ -55,10 +55,43 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_titles[_selectedIndex]),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.green.shade300,
+                Colors.green.shade100,
+              ],
+            ),
+          ),
+        ),
+        title: Text(
+          _titles[_selectedIndex],
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'Poppins', // Asegúrate de tener esta fuente o usa otra
+            letterSpacing: 0.5,
+            color: Colors.white,
+            shadows: [
+              Shadow(
+                offset: Offset(1, 1),
+                blurRadius: 3.0,
+                color: Color.fromARGB(100, 0, 0, 0),
+              ),
+            ],
+          ),
+        ),
+        centerTitle: true,
+        elevation: 4,
         actions: [
           IconButton(
-            icon: const Icon(Icons.exit_to_app),
+            icon: const Icon(
+              Icons.exit_to_app,
+              color: Colors.white,
+            ),
             onPressed: _cerrarSesion,
           ),
         ],
@@ -80,7 +113,8 @@ class _HomePageState extends State<HomePage> {
         },
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.add_circle_outline),
+            icon: Icon(Icons.local_florist_outlined),
+            selectedIcon: Icon(Icons.local_florist),
             label: 'Agregar Planta',
           ),
           NavigationDestination(
