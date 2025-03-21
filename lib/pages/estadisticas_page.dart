@@ -134,35 +134,40 @@ class _EstadisticasPageState extends State<EstadisticasPage> with WidgetsBinding
           ),
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    _buildStatCard(
-                      'Temperatura',
-                      '24°C',
-                      Icons.thermostat_outlined,
-                      Colors.orange.shade400,
-                      context,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildStatCard(
-                      'Humedad Ambiental',
-                      '65%',
-                      Icons.water_drop_outlined,
-                      Colors.blue.shade400,
-                      context,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildStatCard(
-                      'Humedad del Suelo',
-                      '75%',
-                      Icons.grass_outlined,
-                      Colors.green.shade400,
-                      context,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSimplePlantInfoCard(context),
-                  ],
+              : RefreshIndicator(
+                  onRefresh: _cargarPlanta,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      _buildStatCard(
+                        'Temperatura',
+                        '${_planta['ambientTemperature']?.toStringAsFixed(1) ?? '0'}°C',
+                        Icons.thermostat_outlined,
+                        Colors.orange.shade400,
+                        context,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildStatCard(
+                        'Humedad Ambiental',
+                        '${_planta['ambientHumidity']?.toString() ?? '0'}%',
+                        Icons.water_drop_outlined,
+                        Colors.blue.shade400,
+                        context,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildStatCard(
+                        'Humedad del Suelo',
+                        '${_planta['soilHumidity']?.toString() ?? '0'}%',
+                        Icons.grass_outlined,
+                        Colors.green.shade400,
+                        context,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildRainStatusCard(context),
+                      const SizedBox(height: 16),
+                      _buildSimplePlantInfoCard(context),
+                    ],
+                  ),
                 ),
         ),
       ),
@@ -232,6 +237,74 @@ class _EstadisticasPageState extends State<EstadisticasPage> with WidgetsBinding
     );
   }
 
+  Widget _buildRainStatusCard(BuildContext context) {
+    final isRaining = _planta['shelterActive'] ?? false;
+    final statusColor = isRaining ? Colors.blue.shade700 : Colors.grey.shade600;
+    final statusText = isRaining ? 'Está lloviendo' : 'No está lloviendo';
+    final icon = isRaining ? Icons.umbrella : Icons.wb_sunny;
+
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              isRaining ? Colors.blue.shade50 : Colors.grey.shade50,
+              Colors.white,
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: Icon(
+                  icon,
+                  size: 40,
+                  color: statusColor,
+                ),
+              ),
+              const SizedBox(width: 20),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Estado del Clima',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    statusText,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: statusColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSimplePlantInfoCard(BuildContext context) {
     return Card(
       elevation: 4,
@@ -279,30 +352,6 @@ class _EstadisticasPageState extends State<EstadisticasPage> with WidgetsBinding
               _buildInfoRow('Tipo de Planta:', _planta['type'] ?? 'No especificado'),
               if (_planta['description'] != null && _planta['description'].toString().isNotEmpty)
                 _buildInfoRow('Descripción:', _planta['description']),
-              const SizedBox(height: 16),
-              Center(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    _cargarPlanta();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Actualizando datos...'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Actualizar Datos'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade100,
-                    foregroundColor: Colors.green.shade700,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
