@@ -424,14 +424,6 @@ class _PlantasPageState extends State<PlantasPage> {
         _plantas[index] = resultado as Map<String, dynamic>;
       });
 
-      // Mostrar mensaje de éxito
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Planta actualizada exitosamente'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
       // Recargar los datos
       _cargarPlantas();
     }
