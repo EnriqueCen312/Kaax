@@ -19,6 +19,9 @@ class _ControlPageState extends State<ControlPage> {
   Map<String, dynamic> _weatherData = {};
   bool _isLoading = true;
   String _selectedCity = 'Merida';
+  bool _isWatering = false;
+  Timer? _refreshTimer;
+  double _waterLevel = 1.0; // 100% inicial
   
   final List<Map<String, String>> _cities = [
     {'name': 'Mérida', 'query': 'Merida'},
@@ -36,6 +39,17 @@ class _ControlPageState extends State<ControlPage> {
   void initState() {
     super.initState();
     _cargarPronostico();
+    _obtenerEstadoRiego();
+    // Configurar un timer para actualizar el estado cada 2 segundos
+    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      _obtenerEstadoRiego();
+    });
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _cargarPronostico() async {
@@ -114,6 +128,30 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
+  Future<void> _obtenerEstadoRiego() async {
+    try {
+      print('Obteniendo estado del riego...');
+      final response = await http.get(
+        Uri.parse('https://api-kaax.onrender.com/kaax/plants/esp/plant'),
+      );
+
+      print('Respuesta del servidor (GET estado): ${response.statusCode}');
+      print('Cuerpo de la respuesta (GET estado): ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _isWatering = data['waterRelayActive'] ?? false;
+        });
+        print('Estado del riego actualizado: $_isWatering');
+      } else {
+        print('Error al obtener estado del riego: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error al obtener estado del riego: $e');
+    }
+  }
+
   void _mostrarError(String mensaje) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -126,6 +164,136 @@ class _ControlPageState extends State<ControlPage> {
           label: 'Reintentar',
           onPressed: _cargarPronostico,
           textColor: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _activarRiego() async {
+    if (_waterLevel <= 0.1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No hay suficiente agua para regar'),
+          backgroundColor: Colors.red.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      print('Iniciando proceso de riego...');
+      
+      // Mostrar mensaje de inicio
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Iniciando riego...'),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+
+      print('Enviando petición para activar el riego (waterRelayActive: true)');
+      // Activar el riego (waterRelayActive = true)
+      final response = await http.put(
+        Uri.parse('https://api-kaax.onrender.com/kaax/plants/esp/plant'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          "waterRelayActive": true
+        }),
+      );
+
+      print('Respuesta del servidor (activar): ${response.statusCode}');
+      print('Cuerpo de la respuesta (activar): ${response.body}');
+
+      if (response.statusCode != 200) {
+        throw Exception('Error al activar el riego: ${response.statusCode}');
+      }
+
+      // Reducir el nivel de agua
+      setState(() {
+        _waterLevel = (_waterLevel - 0.1).clamp(0.0, 1.0);
+      });
+
+      print('Riego activado exitosamente. Esperando 1.5 segundos...');
+      // Esperar 1.5 segundos
+      await Future.delayed(const Duration(milliseconds: 1500));
+
+      print('Enviando petición para desactivar el riego (waterRelayActive: false)');
+      // Desactivar el riego (waterRelayActive = false)
+      final responseDesactivar = await http.put(
+        Uri.parse('https://api-kaax.onrender.com/kaax/plants/esp/plant'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          "waterRelayActive": false
+        }),
+      );
+
+      print('Respuesta del servidor (desactivar): ${responseDesactivar.statusCode}');
+      print('Cuerpo de la respuesta (desactivar): ${responseDesactivar.body}');
+
+      if (responseDesactivar.statusCode != 200) {
+        throw Exception('Error al desactivar el riego: ${responseDesactivar.statusCode}');
+      }
+
+      print('Riego desactivado exitosamente');
+      if (!mounted) return;
+
+      // Mostrar mensaje de finalización
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Riego completado'),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+
+      print('Proceso de riego completado exitosamente');
+
+    } catch (e) {
+      print('Error en el proceso de riego:');
+      print('Tipo de error: ${e.runtimeType}');
+      print('Mensaje de error: $e');
+      
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+  }
+
+  void _rellenarTanque() {
+    setState(() {
+      _waterLevel = 1.0;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('¡Tanque rellenado exitosamente!'),
+        backgroundColor: Colors.green.shade600,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
         ),
       ),
     );
@@ -217,22 +385,52 @@ class _ControlPageState extends State<ControlPage> {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
                   child: LinearProgressIndicator(
-                    value: 0.75,
+                    value: _waterLevel,
                     minHeight: 25,
                     backgroundColor: Colors.blue.shade100,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade400),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _waterLevel <= 0.1 ? Colors.red.shade400 : Colors.blue.shade400
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 12),
               Text(
-                '75% Disponible',
+                '${(_waterLevel * 100).round()}% Disponible',
                 style: TextStyle(
                   fontSize: 18,
-                  color: Colors.blue.shade700,
+                  color: _waterLevel <= 0.1 ? Colors.red.shade700 : Colors.blue.shade700,
                   fontWeight: FontWeight.w500,
                 ),
               ),
+              if (_waterLevel <= 0.1) ...[
+                const SizedBox(height: 16),
+                Text(
+                  '¡No olvides llenar tu tanque!',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.red.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: _rellenarTanque,
+                  icon: const Icon(Icons.water),
+                  label: const Text('Rellenar Tanque'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade400,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -490,25 +688,17 @@ class _ControlPageState extends State<ControlPage> {
               ),
               const SizedBox(height: 24),
               ElevatedButton.icon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Iniciando riego...'),
-                      backgroundColor: Colors.green.shade600,
-                      behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.water_drop, size: 24),
-                label: const Text(
-                  'Regar Ahora',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                onPressed: _activarRiego,
+                icon: Icon(
+                  _isWatering ? Icons.water_drop : Icons.water_drop_outlined,
+                  size: 24,
+                ),
+                label: Text(
+                  _isWatering ? 'Regando...' : 'Regar Ahora',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade400,
+                  backgroundColor: _isWatering ? Colors.blue.shade400 : Colors.green.shade400,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
