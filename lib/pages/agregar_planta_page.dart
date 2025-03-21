@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class AgregarPlantaPage extends StatefulWidget {
-  final Map<String, String>? plantaExistente;
+  final Map<String, dynamic>? plantaExistente;
   final String titulo;
 
   const AgregarPlantaPage({
@@ -19,14 +21,153 @@ class _AgregarPlantaPageState extends State<AgregarPlantaPage> {
   final _nombreController = TextEditingController();
   final _tipoController = TextEditingController();
   final _descripcionController = TextEditingController();
+  bool _isLoading = false;
+  String? _plantaId;
 
   @override
   void initState() {
     super.initState();
     if (widget.plantaExistente != null) {
-      _nombreController.text = widget.plantaExistente!['nombre'] ?? '';
-      _tipoController.text = widget.plantaExistente!['tipo'] ?? '';
-      _descripcionController.text = widget.plantaExistente!['descripcion'] ?? '';
+      _plantaId = widget.plantaExistente!['_id'] as String?;
+      _nombreController.text = widget.plantaExistente!['nombre'] ?? widget.plantaExistente!['name'] ?? '';
+      _tipoController.text = widget.plantaExistente!['tipo'] ?? widget.plantaExistente!['type'] ?? '';
+      _descripcionController.text = widget.plantaExistente!['descripcion'] ?? widget.plantaExistente!['description'] ?? '';
+    }
+  }
+
+  Future<void> _guardarPlanta() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      try {
+        final planta = {
+          'name': _nombreController.text,
+          'type': _tipoController.text,
+          'description': _descripcionController.text,
+          // Valores por defecto para los campos adicionales
+          'soilHumidity': 40,
+          'ambientHumidity': 50,
+          'ambientTemperature': 22,
+          'shelterActive': true,
+          'water': 60
+        };
+        
+        // Si estamos editando, incluir el ID en el objeto
+        if (_plantaId != null) {
+          planta['_id'] = _plantaId as Object;
+        }
+        
+        final url = 'https://api-kaax.onrender.com/kaax/plants/app/plant';
+        print('URL: $url');
+        print('Enviando datos de planta: ${jsonEncode(planta)}');
+        print('Método: ${widget.plantaExistente != null ? "PUT" : "POST"}');
+        
+        final Uri uri = Uri.parse(url);
+        final http.Response response;
+        
+        // Si estamos editando, usamos PUT, si es nueva, usamos POST
+        if (widget.plantaExistente != null) {
+          response = await http.put(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(planta),
+          );
+        } else {
+          response = await http.post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(planta),
+          );
+        }
+        
+        print('Código de respuesta: ${response.statusCode}');
+        print('Respuesta completa: ${response.body}');
+        
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          if (!mounted) return;
+          
+          final mensaje = widget.plantaExistente != null 
+              ? 'Planta actualizada exitosamente' 
+              : 'Planta guardada exitosamente';
+          
+          // Intentar parsear la respuesta para obtener el ID si es una creación
+          try {
+            final responseData = jsonDecode(response.body);
+            if (responseData['_id'] != null && _plantaId == null) {
+              _plantaId = responseData['_id'];
+            }
+          } catch (e) {
+            print('Error al parsear respuesta: $e');
+          }
+              
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(mensaje),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          Navigator.pop(context, {
+            '_id': _plantaId,
+            'nombre': _nombreController.text,
+            'tipo': _tipoController.text,
+            'descripcion': _descripcionController.text,
+            'name': _nombreController.text,
+            'type': _tipoController.text,
+            'description': _descripcionController.text,
+          });
+        } else {
+          if (!mounted) return;
+          
+          String errorMessage = widget.plantaExistente != null
+              ? 'Error al actualizar la planta'
+              : 'Error al guardar la planta';
+              
+          try {
+            final responseData = jsonDecode(response.body);
+            if (responseData['message'] != null) {
+              errorMessage = 'Error: ${responseData['message']}';
+            }
+          } catch (e) {
+            errorMessage = 'Error: ${response.body}';
+          }
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      } catch (e) {
+        print('Excepción al guardar planta: $e');
+        if (!mounted) return;
+        
+        final mensaje = widget.plantaExistente != null
+            ? 'Error al actualizar la planta: $e'
+            : 'Error al guardar la planta: $e';
+            
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(mensaje),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
     }
   }
 
@@ -125,32 +266,25 @@ class _AgregarPlantaPageState extends State<AgregarPlantaPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    if (_formKey.currentState!.validate()) {
-                      final planta = {
-                        'nombre': _nombreController.text,
-                        'tipo': _tipoController.text,
-                        'descripcion': _descripcionController.text,
-                      };
-                      Navigator.pop(context, planta);
-                    }
-                  },
-                  icon: Icon(widget.plantaExistente != null ? Icons.save : Icons.add),
-                  label: Text(
-                    widget.plantaExistente != null ? 'Guardar Cambios' : 'Agregar Planta',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade400,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    elevation: 4,
-                  ),
-                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ElevatedButton.icon(
+                        onPressed: _guardarPlanta,
+                        icon: Icon(widget.plantaExistente != null ? Icons.save : Icons.add),
+                        label: Text(
+                          widget.plantaExistente != null ? 'Guardar Cambios' : 'Agregar Planta',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade400,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15),
+                          ),
+                          elevation: 4,
+                        ),
+                      ),
               ],
             ),
           ),
