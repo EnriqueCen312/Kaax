@@ -49,8 +49,9 @@ class _ControlPageState extends State<ControlPage> {
       
       print('Consultando pronóstico para: $ciudad');
       
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
       final response = await http.get(
-        Uri.parse('https://api.openweathermap.org/data/2.5/forecast?q=$ciudad,MX&appid=$apiKey&units=metric&lang=es&cnt=8'),
+        Uri.parse('https://api.openweathermap.org/data/2.5/forecast?q=$ciudad,MX&appid=$apiKey&units=metric&lang=es&cnt=8&t=$timestamp'),
       ).timeout(
         const Duration(seconds: 10),
         onTimeout: () {
